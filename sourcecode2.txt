@@ -1,0 +1,111 @@
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+
+public class PolynomialCheck {
+
+    static class Point {
+        int x;
+        double y;
+
+        Point(int x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            // Read JSON from file
+            JSONParser parser = new JSONParser();
+            JSONObject jsonObject = (JSONObject) parser.parse(new FileReader("input.json"));
+
+            // Extract points
+            JSONObject keys = (JSONObject) jsonObject.get("keys");
+            int n = Integer.parseInt(keys.get("n").toString());
+            List<Point> points = new ArrayList<>();
+
+            for (int i = 1; i <= n; i++) {
+                JSONObject pointObject = (JSONObject) jsonObject.get(String.valueOf(i));
+                String base = (String) pointObject.get("base");
+                String value = (String) pointObject.get("value");
+                double decodedValue = decodeValue(base, value);
+                points.add(new Point(i, decodedValue));
+            }
+
+            // Interpolate to find the polynomial
+            double[] coefficients = interpolate(points);
+            
+            // Identify wrong points
+            List<Point> wrongPoints = findWrongPoints(points, coefficients);
+            
+            // Print results
+            System.out.println("Secret (c): " + coefficients[0]); // Constant term
+            System.out.println("Wrong Points:");
+            for (Point wrongPoint : wrongPoints) {
+                System.out.println("(" + wrongPoint.x + ", " + wrongPoint.y + ")");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Decode the base value
+    private static double decodeValue(String base, String value) {
+        int baseValue = Integer.parseInt(base);
+        return Integer.parseInt(value, baseValue);
+    }
+
+    // Lagrange interpolation to find polynomial coefficients
+    private static double[] interpolate(List<Point> points) {
+        int n = points.size();
+        double[] coefficients = new double[n];
+
+        // Calculate coefficients
+        for (int i = 0; i < n; i++) {
+            coefficients[i] = points.get(i).y;
+            for (int j = 0; j < n; j++) {
+                if (j != i) {
+                    coefficients[i] /= (points.get(i).x - points.get(j).x);
+                }
+            }
+        }
+
+        // Calculate the constant term c (y-intercept)
+        double constantTerm = coefficients[0];
+        for (int i = 1; i < n; i++) {
+            double product = 1;
+            for (int j = 0; j < i; j++) {
+                product *= (0 - points.get(j).x);
+            }
+            constantTerm += coefficients[i] * product;
+        }
+        coefficients[0] = constantTerm; // Set constant term as the first coefficient
+
+        return coefficients;
+    }
+
+    // Find wrong points based on the polynomial
+    private static List<Point> findWrongPoints(List<Point> points, double[] coefficients) {
+        List<Point> wrongPoints = new ArrayList<>();
+        for (Point point : points) {
+            double expectedY = evaluatePolynomial(coefficients, point.x);
+            if (Math.abs(expectedY - point.y) > 1e-5) { // Tolerance for floating-point comparison
+                wrongPoints.add(point);
+            }
+        }
+        return wrongPoints;
+    }
+
+    // Evaluate polynomial at given x
+    private static double evaluatePolynomial(double[] coefficients, int x) {
+        double result = 0;
+        for (int i = 0; i < coefficients.length; i++) {
+            result += coefficients[i] * Math.pow(x, i);
+        }
+        return result;
+    }
+}
